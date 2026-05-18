@@ -89,6 +89,7 @@ input:focus, textarea:focus, select:focus { border-color: var(--primary); }
 .form-group label { display: block; margin-bottom: 6px; font-size: 13px; color: var(--text2); font-weight: 500; }
 .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 
+/* ========= SIDEBAR ========= */
 .sidebar {
   width: 240px; min-height: 100vh;
   background: var(--bg2);
@@ -96,36 +97,72 @@ input:focus, textarea:focus, select:focus { border-color: var(--primary); }
   padding: 20px 0;
   position: fixed; left: 0; top: 0;
   display: flex; flex-direction: column;
+  z-index: 100;
+  transition: transform 0.3s ease;
 }
-.sidebar-logo { padding: 0 20px 20px; font-size: 20px; font-weight: 700; color: var(--primary); border-bottom: 1px solid var(--border); margin-bottom: 12px; }
+.sidebar-logo { padding: 0 20px 20px; font-size: 20px; font-weight: 700; color: var(--primary); border-bottom: 1px solid var(--border); margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center; }
 .sidebar-nav a { display: flex; align-items: center; gap: 10px; padding: 10px 20px; color: var(--text2); text-decoration: none; font-size: 14px; font-weight: 500; transition: all 0.2s; }
 .sidebar-nav a:hover, .sidebar-nav a.active { background: var(--bg3); color: var(--text); }
 .sidebar-bottom { margin-top: auto; padding: 20px; border-top: 1px solid var(--border); }
 
+/* ========= MOBILE HAMBURGER ========= */
+.hamburger {
+  display: none;
+  position: fixed;
+  top: 16px; left: 16px;
+  z-index: 200;
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px;
+  cursor: pointer;
+  color: var(--text);
+}
+.sidebar-close {
+  display: none;
+  background: none;
+  border: none;
+  color: var(--text2);
+  cursor: pointer;
+  font-size: 20px;
+}
+.sidebar-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.5);
+  z-index: 99;
+}
+
+/* ========= MAIN CONTENT ========= */
 .main-content { margin-left: 240px; padding: 32px; min-height: 100vh; }
 
 .page-header { margin-bottom: 28px; }
 .page-header h1 { font-size: 24px; font-weight: 700; }
 .page-header p { color: var(--text2); margin-top: 4px; font-size: 14px; }
 
-.stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 16px; margin-bottom: 28px; }
+/* ========= STAT GRID ========= */
+.stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 16px; margin-bottom: 28px; }
 .stat-card { background: var(--bg2); border: 1px solid var(--border); border-radius: 12px; padding: 20px; }
 .stat-card .label { font-size: 13px; color: var(--text2); margin-bottom: 8px; }
 .stat-card .value { font-size: 28px; font-weight: 700; }
 
-.kanban { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; align-items: start; }
-.kanban-col { background: var(--bg2); border: 1px solid var(--border); border-radius: 12px; padding: 16px; }
+/* ========= KANBAN ========= */
+.kanban { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; align-items: start; overflow-x: auto; }
+.kanban-col { background: var(--bg2); border: 1px solid var(--border); border-radius: 12px; padding: 16px; min-width: 220px; }
 .kanban-col-header { font-size: 13px; font-weight: 600; color: var(--text2); margin-bottom: 12px; display: flex; justify-content: space-between; }
 .task-card { background: var(--bg3); border: 1px solid var(--border); border-radius: 8px; padding: 14px; margin-bottom: 10px; cursor: pointer; transition: border 0.2s; border-left: 3px solid var(--primary); }
 .task-card:hover { border-color: var(--primary); }
 .task-card h4 { font-size: 14px; font-weight: 600; margin-bottom: 6px; }
 .task-card p { font-size: 12px; color: var(--text2); }
 
+/* ========= PROJECTS ========= */
 .projects-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; }
 .project-card { background: var(--bg2); border: 1px solid var(--border); border-radius: 12px; padding: 20px; cursor: pointer; transition: border 0.2s; text-decoration: none; color: inherit; display: block; }
 .project-card:hover { border-color: var(--primary); }
 
-.auth-page { min-height: 100vh; display: flex; align-items: center; justify-content: center; background: var(--bg); }
+/* ========= AUTH ========= */
+.auth-page { min-height: 100vh; display: flex; align-items: center; justify-content: center; background: var(--bg); padding: 20px; }
 .auth-card { background: var(--bg2); border: 1px solid var(--border); border-radius: 16px; padding: 40px; width: 100%; max-width: 420px; }
 .auth-card h1 { font-size: 24px; font-weight: 700; margin-bottom: 8px; }
 .auth-card p { color: var(--text2); margin-bottom: 28px; font-size: 14px; }
@@ -150,3 +187,34 @@ input:focus, textarea:focus, select:focus { border-color: var(--primary); }
 .text-danger { color: var(--danger); }
 .text-success { color: var(--success); }
 .w-full { width: 100%; }
+
+/* ========= DASHBOARD GRID ========= */
+.dashboard-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+
+/* ========= MOBILE RESPONSIVE ========= */
+@media (max-width: 768px) {
+  .hamburger { display: flex; }
+  .sidebar-close { display: block; }
+  .sidebar {
+    transform: translateX(-100%);
+    width: 280px;
+  }
+  .sidebar.open { transform: translateX(0); }
+  .sidebar-overlay.open { display: block; }
+  .main-content { margin-left: 0; padding: 20px 16px; padding-top: 60px; }
+  .kanban { grid-template-columns: 1fr; }
+  .kanban-col { min-width: unset; }
+  .form-row { grid-template-columns: 1fr; }
+  .dashboard-grid { grid-template-columns: 1fr; }
+  .page-header { flex-direction: column; align-items: flex-start !important; gap: 12px; }
+  .page-header .flex { width: 100%; }
+  .stat-grid { grid-template-columns: 1fr 1fr; }
+  .projects-grid { grid-template-columns: 1fr; }
+  .auth-card { padding: 24px; }
+  .modal { padding: 20px; }
+}
+
+@media (max-width: 480px) {
+  .stat-grid { grid-template-columns: 1fr 1fr; }
+  .stat-card .value { font-size: 22px; }
+}
