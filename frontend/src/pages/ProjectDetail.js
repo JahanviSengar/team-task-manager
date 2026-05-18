@@ -1,178 +1,277 @@
-import React, { useEffect, useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
-import toast from 'react-hot-toast';
-import { getProject, getProjectTasks, createTask, updateTask, deleteTask, addMember, removeMember, searchUsers } from '../utils/api';
+import React, { useState, useEffect } from 'react';
+import { useParams, useNavigate, Link } from 'react-router-dom';
+import { projectAPI, taskAPI } from '../utils/api';
 import { useAuth } from '../context/AuthContext';
-import { Plus, Trash2, ArrowLeft, Users } from 'lucide-react';
+import toast from 'react-hot-toast';
+import { format } from 'date-fns';
+import { ArrowLeft, Plus, Users, Trash2, UserPlus, Crown, Shield, User, AlertTriangle, Search } from 'lucide-react';
+import TaskModal from '../components/TaskModal';
+import TaskCard from '../components/TaskCard';
+import AddMemberModal from '../components/AddMemberModal';
 
-const STATUSES = ['todo', 'in-progress', 'in-review', 'done'];
-const STATUS_LABELS = { 'todo': 'To Do', 'in-progress': 'In Progress', 'in-review': 'In Review', 'done': 'Done' };
-const PRIORITY_COLORS = { low: '#22c55e', medium: '#f59e0b', high: '#ef4444', critical: '#a855f7' };
+const COLUMNS = [
+  { key: 'todo', label: 'To Do', color: 'var(--text-3)' },
+  { key: 'in_progress', label: 'In Progress', color: 'var(--blue)' },
+  { key: 'in_review', label: 'In Review', color: 'var(--yellow)' },
+  { key: 'done', label: 'Done', color: 'var(--green)' },
+];
 
 export default function ProjectDetail() {
   const { id } = useParams();
-  const navigate = useNavigate();
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [project, setProject] = useState(null);
   const [tasks, setTasks] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showTaskModal, setShowTaskModal] = useState(false);
-  const [showMemberModal, setShowMemberModal] = useState(false);
-  const [taskForm, setTaskForm] = useState({ title: '', description: '', status: 'todo', priority: 'medium', dueDate: '', assignedTo: '' });
-  const [saving, setSaving] = useState(false);
-  const [memberSearch, setMemberSearch] = useState('');
-  const [searchResults, setSearchResults] = useState([]);
-  const [tab, setTab] = useState('kanban');
+  const [editTask, setEditTask] = useState(null);
+  const [showAddMember, setShowAddMember] = useState(false);
+  const [activeTab, setActiveTab] = useState('board');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [filterPriority, setFilterPriority] = useState('');
+  const [settingsForm, setSettingsForm] = useState(null);
+  const [savingSettings, setSavingSettings] = useState(false);
+
+  const fetchProject = async () => {
+    try {
+      const res = await projectAPI.getOne(id);
+      setProject(res.data.project);
+      setSettingsForm({ name: res.data.project.name, description: res.data.project.description, status: res.data.project.status, priority: res.data.project.priority });
+    } catch {
+      toast.error('Project not found');
+      navigate('/projects');
+    }
+  };
+
+  const fetchTasks = async () => {
+    try {
+      const params = {};
+      if (filterPriority) params.priority = filterPriority;
+      if (searchQuery) params.search = searchQuery;
+      const res = await taskAPI.getAll(id, params);
+      setTasks(res.data.tasks);
+    } catch {
+      toast.error('Failed to load tasks');
+    }
+  };
 
   useEffect(() => {
-    Promise.all([getProject(id), getProjectTasks(id)])
-      .then(([p, t]) => { setProject(p.data.data); setTasks(t.data.data); })
-      .catch(() => navigate('/projects'))
-      .finally(() => setLoading(false));
+    Promise.all([fetchProject(), fetchTasks()]).finally(() => setLoading(false));
   }, [id]);
 
-  const tasksByStatus = status => tasks.filter(t => t.status === status);
+  useEffect(() => { if (!loading) fetchTasks(); }, [filterPriority, searchQuery]);
 
-  const handleCreateTask = async e => {
-    e.preventDefault();
-    setSaving(true);
-    try {
-      const { data } = await createTask(id, taskForm);
-      setTasks([...tasks, data.data]);
-      setShowTaskModal(false);
-      setTaskForm({ title: '', description: '', status: 'todo', priority: 'medium', dueDate: '', assignedTo: '' });
-      toast.success('Task created!');
-    } catch (err) {
-      toast.error(err.response?.data?.message || 'Failed');
-    } finally { setSaving(false); }
+  const myRole = project?.members?.find(m => m.user._id === user._id)?.role;
+  const isOwner = project?.owner?._id === user._id;
+  const isAdmin = myRole === 'admin';
+  const canManage = isAdmin || isOwner;
+  const getColumnTasks = (status) => tasks.filter(t => t.status === status);
+
+  const handleTaskSaved = (savedTask) => {
+    setTasks(prev => {
+      const idx = prev.findIndex(t => t._id === savedTask._id);
+      if (idx >= 0) { const updated = [...prev]; updated[idx] = savedTask; return updated; }
+      return [savedTask, ...prev];
+    });
+    setShowTaskModal(false);
+    setEditTask(null);
   };
 
-  const handleStatusChange = async (task, newStatus) => {
-    try {
-      const { data } = await updateTask(id, task._id, { status: newStatus });
-      setTasks(tasks.map(t => t._id === task._id ? data.data : t));
-    } catch { toast.error('Failed to update'); }
-  };
-
-  const handleDeleteTask = async (tid) => {
+  const handleDeleteTask = async (taskId) => {
     if (!window.confirm('Delete this task?')) return;
     try {
-      await deleteTask(id, tid);
-      setTasks(tasks.filter(t => t._id !== tid));
-      toast.success('Deleted');
-    } catch { toast.error('Failed'); }
-  };
-
-  const handleMemberSearch = async () => {
-    if (!memberSearch.trim()) return;
-    try {
-      const { data } = await searchUsers(memberSearch);
-      setSearchResults(data.data);
-    } catch { toast.error('Search failed'); }
-  };
-
-  const handleAddMember = async (userId) => {
-    try {
-      const { data } = await addMember(id, { userId, role: 'member' });
-      setProject(data.data);
-      toast.success('Member added!');
-    } catch (err) { toast.error(err.response?.data?.message || 'Failed'); }
+      await taskAPI.delete(id, taskId);
+      setTasks(prev => prev.filter(t => t._id !== taskId));
+      toast.success('Task deleted');
+    } catch { toast.error('Failed to delete task'); }
   };
 
   const handleRemoveMember = async (userId) => {
     if (!window.confirm('Remove this member?')) return;
     try {
-      const { data } = await removeMember(id, userId);
-      setProject(data.data);
-      toast.success('Removed');
-    } catch { toast.error('Failed'); }
+      const res = await projectAPI.removeMember(id, userId);
+      setProject(res.data.project);
+      toast.success('Member removed');
+    } catch (err) { toast.error(err.response?.data?.message || 'Failed to remove'); }
   };
 
-  const myRole = project?.members?.find(m => m.user?._id === user?._id)?.role;
-  const isAdmin = myRole === 'admin' || project?.owner?._id === user?._id;
+  const handleUpdateRole = async (userId, newRole) => {
+    try {
+      const res = await projectAPI.updateMemberRole(id, userId, { role: newRole });
+      setProject(res.data.project);
+      toast.success('Role updated');
+    } catch (err) { toast.error(err.response?.data?.message || 'Failed to update role'); }
+  };
 
-  if (loading) return <div className="spinner" />;
+  const handleSaveSettings = async (e) => {
+    e.preventDefault();
+    setSavingSettings(true);
+    try {
+      const res = await projectAPI.update(id, settingsForm);
+      setProject(res.data.project);
+      toast.success('Project updated!');
+    } catch (err) { toast.error(err.response?.data?.message || 'Failed to update'); }
+    finally { setSavingSettings(false); }
+  };
+
+  const handleDeleteProject = async () => {
+    if (!window.confirm('Delete this project and ALL its tasks?')) return;
+    try {
+      await projectAPI.delete(id);
+      toast.success('Project deleted');
+      navigate('/projects');
+    } catch (err) { toast.error(err.response?.data?.message || 'Failed to delete'); }
+  };
+
+  if (loading) return <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', padding: '4rem' }}><div className="spinner" style={{ width: 36, height: 36 }} /></div>;
   if (!project) return null;
 
+  const overdueCount = tasks.filter(t => t.isOverdue).length;
+
   return (
-    <div>
-      <div className="page-header flex justify-between items-center">
-        <div>
-          <button onClick={() => navigate('/projects')} className="btn btn-outline flex items-center gap-2 mb-2" style={{ padding: '6px 12px', fontSize: 13 }}>
-            <ArrowLeft size={14} /> Projects
-          </button>
-          <h1>{project.name}</h1>
-          <p>{project.description}</p>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+      <div style={{ padding: '1.25rem 2rem', borderBottom: '1px solid var(--border)', background: 'var(--bg-2)', flexShrink: 0 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '0.75rem' }}>
+          <Link to="/projects" style={{ color: 'var(--text-2)', display: 'flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.85rem' }}>
+            <ArrowLeft size={15} /> Projects
+          </Link>
+          <span style={{ color: 'var(--text-3)' }}>/</span>
+          <span style={{ fontSize: '0.85rem', color: 'var(--text-2)' }}>{project.name}</span>
         </div>
-        <div className="flex gap-2">
-          <button className="btn btn-outline flex items-center gap-2" onClick={() => setShowMemberModal(true)}>
-            <Users size={16} /> Members ({project.members?.length})
-          </button>
-          <button className="btn btn-primary flex items-center gap-2" onClick={() => setShowTaskModal(true)}>
-            <Plus size={16} /> Add Task
-          </button>
-        </div>
-      </div>
-
-      <div className="kanban">
-        {STATUSES.map(status => (
-          <div key={status} className="kanban-col">
-            <div className="kanban-col-header">
-              <span>{STATUS_LABELS[status]}</span>
-              <span style={{ background: 'var(--bg)', padding: '2px 8px', borderRadius: 10, fontSize: 11 }}>{tasksByStatus(status).length}</span>
-            </div>
-            {tasksByStatus(status).map(task => (
-              <div key={task._id} className="task-card" style={{ borderLeftColor: PRIORITY_COLORS[task.priority] }}>
-                <div className="flex justify-between items-center mb-2">
-                  <h4>{task.title}</h4>
-                  <button onClick={() => handleDeleteTask(task._id)} style={{ background: 'none', border: 'none', color: 'var(--text2)', cursor: 'pointer' }}>
-                    <Trash2 size={13} />
-                  </button>
-                </div>
-                {task.description && <p className="text-xs text-muted mb-2">{task.description.slice(0, 80)}{task.description.length > 80 ? '...' : ''}</p>}
-                <div className="flex justify-between items-center mt-2">
-                  <span className={`badge badge-${task.priority}`}>{task.priority}</span>
-                  <select value={task.status} onChange={e => handleStatusChange(task, e.target.value)}
-                    style={{ background: 'var(--bg)', border: '1px solid var(--border)', color: 'var(--text2)', borderRadius: 6, padding: '2px 6px', fontSize: 11, cursor: 'pointer' }}>
-                    {STATUSES.map(s => <option key={s} value={s}>{STATUS_LABELS[s]}</option>)}
-                  </select>
-                </div>
-                {task.assignedTo && (
-                  <div className="flex items-center gap-1 mt-2">
-                    <img src={task.assignedTo.avatar || `https://api.dicebear.com/7.x/initials/svg?seed=${task.assignedTo.name}`} alt="" style={{ width: 18, height: 18, borderRadius: '50%' }} />
-                    <span className="text-xs text-muted">{task.assignedTo.name}</span>
-                  </div>
-                )}
-                {task.dueDate && <p className={`text-xs mt-1 ${new Date(task.dueDate) < new Date() && task.status !== 'done' ? 'text-danger' : 'text-muted'}`}>Due: {new Date(task.dueDate).toLocaleDateString()}</p>}
-              </div>
-            ))}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '1rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+            <div style={{ width: 10, height: 10, borderRadius: '50%', background: project.color || 'var(--accent)' }} />
+            <h1 style={{ fontSize: '1.4rem' }}>{project.name}</h1>
+            <span className={`badge badge-${project.priority}`}>{project.priority}</span>
+            {overdueCount > 0 && <span style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.75rem', color: 'var(--red)', background: 'rgba(239,68,68,0.1)', padding: '0.2rem 0.6rem', borderRadius: 100 }}><AlertTriangle size={11} /> {overdueCount} overdue</span>}
           </div>
-        ))}
+          <div style={{ display: 'flex', gap: '0.5rem' }}>
+            {canManage && <button className="btn btn-secondary btn-sm" onClick={() => setShowAddMember(true)}><UserPlus size={14} /> Add Member</button>}
+            <button className="btn btn-primary btn-sm" onClick={() => setShowTaskModal(true)}><Plus size={14} /> Add Task</button>
+          </div>
+        </div>
+        <div style={{ display: 'flex', gap: '0', marginTop: '1rem', borderBottom: '1px solid var(--border)', marginBottom: '-1.25rem' }}>
+          {['board', 'members', ...(canManage ? ['settings'] : [])].map(tab => (
+            <button key={tab} onClick={() => setActiveTab(tab)} style={{ padding: '0.5rem 1rem', background: 'none', border: 'none', color: activeTab === tab ? 'var(--text)' : 'var(--text-3)', fontWeight: activeTab === tab ? 600 : 400, fontSize: '0.875rem', cursor: 'pointer', borderBottom: activeTab === tab ? '2px solid var(--accent)' : '2px solid transparent', fontFamily: 'inherit', textTransform: 'capitalize', transition: 'all 0.15s' }}>{tab}</button>
+          ))}
+        </div>
       </div>
 
-      {showTaskModal && (
-        <div className="modal-overlay" onClick={() => setShowTaskModal(false)}>
-          <div className="modal" onClick={e => e.stopPropagation()}>
-            <h2>New Task</h2>
-            <form onSubmit={handleCreateTask}>
+      <div style={{ flex: 1, overflow: 'auto', padding: '1.5rem 2rem' }}>
+        {activeTab === 'board' && (
+          <>
+            <div style={{ display: 'flex', gap: '0.75rem', marginBottom: '1.25rem', flexWrap: 'wrap' }}>
+              <div style={{ position: 'relative', flex: '1 1 200px' }}>
+                <Search size={14} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-3)' }} />
+                <input value={searchQuery} onChange={e => setSearchQuery(e.target.value)} placeholder="Search tasks..." style={{ paddingLeft: '2rem', height: 36, fontSize: '0.83rem' }} />
+              </div>
+              <select value={filterPriority} onChange={e => setFilterPriority(e.target.value)} style={{ flex: '0 0 auto', width: 'auto', height: 36, fontSize: '0.83rem' }}>
+                <option value="">All Priorities</option>
+                <option value="low">Low</option>
+                <option value="medium">Medium</option>
+                <option value="high">High</option>
+                <option value="critical">Critical</option>
+              </select>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(240px, 1fr))', gap: '1rem', minWidth: 'max-content', paddingBottom: '1rem' }}>
+              {COLUMNS.map(col => {
+                const colTasks = getColumnTasks(col.key);
+                return (
+                  <div key={col.key} style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.5rem 0.1rem' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        <div style={{ width: 8, height: 8, borderRadius: '50%', background: col.color }} />
+                        <span style={{ fontSize: '0.83rem', fontWeight: 700 }}>{col.label}</span>
+                        <span style={{ fontSize: '0.72rem', color: 'var(--text-3)', background: 'var(--bg-3)', padding: '0.1rem 0.5rem', borderRadius: 100 }}>{colTasks.length}</span>
+                      </div>
+                      <button className="btn btn-ghost btn-icon btn-sm" onClick={() => setShowTaskModal(true)}><Plus size={13} /></button>
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', minHeight: 80 }}>
+                      {colTasks.map(task => (
+                        <TaskCard key={task._id} task={task}
+                          onEdit={(t) => { setEditTask(t); setShowTaskModal(true); }}
+                          onDelete={handleDeleteTask}
+                          canEdit={canManage || task.createdBy?._id === user._id || task.assignedTo?._id === user._id} />
+                      ))}
+                      {colTasks.length === 0 && <div style={{ border: '1px dashed var(--border)', borderRadius: 'var(--radius)', padding: '1.5rem', textAlign: 'center', color: 'var(--text-3)', fontSize: '0.78rem' }}>No tasks</div>}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </>
+        )}
+
+        {activeTab === 'members' && (
+          <div style={{ maxWidth: 600 }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.25rem' }}>
+              <h2 style={{ fontSize: '1rem' }}>{project.members.length} Members</h2>
+              {canManage && <button className="btn btn-primary btn-sm" onClick={() => setShowAddMember(true)}><UserPlus size={14} /> Add Member</button>}
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+              {project.members.map(m => {
+                const isProjectOwner = project.owner._id === m.user._id;
+                const isSelf = m.user._id === user._id;
+                return (
+                  <div key={m.user._id} className="card" style={{ padding: '0.9rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.9rem' }}>
+                      <img src={m.user.avatar} alt={m.user.name} style={{ width: 40, height: 40, borderRadius: '50%', border: '2px solid var(--border)' }} />
+                      <div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontWeight: 600, fontSize: '0.9rem' }}>
+                          {m.user.name}
+                          {isProjectOwner && <Crown size={12} color="var(--yellow)" />}
+                          {isSelf && <span style={{ fontSize: '0.65rem', color: 'var(--text-3)' }}>(you)</span>}
+                        </div>
+                        <div style={{ fontSize: '0.75rem', color: 'var(--text-3)' }}>{m.user.email}</div>
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                      {isOwner && !isProjectOwner && !isSelf ? (
+                        <select value={m.role} onChange={e => handleUpdateRole(m.user._id, e.target.value)} style={{ width: 'auto', fontSize: '0.78rem', padding: '0.25rem 0.5rem', height: 'auto' }}>
+                          <option value="member">Member</option>
+                          <option value="admin">Admin</option>
+                        </select>
+                      ) : (
+                        <span style={{ fontSize: '0.75rem', fontWeight: 600, color: m.role === 'admin' ? 'var(--accent)' : 'var(--text-3)', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                          {m.role === 'admin' ? <Shield size={12} /> : <User size={12} />}{m.role}
+                        </span>
+                      )}
+                      {canManage && !isProjectOwner && !isSelf && (
+                        <button className="btn btn-danger btn-sm btn-icon" onClick={() => handleRemoveMember(m.user._id)}><Trash2 size={13} /></button>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'settings' && canManage && (
+          <div style={{ maxWidth: 500 }}>
+            <h2 style={{ fontSize: '1rem', marginBottom: '1.25rem' }}>Project Settings</h2>
+            <form onSubmit={handleSaveSettings} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
               <div className="form-group">
-                <label>Title</label>
-                <input placeholder="Task title" value={taskForm.title} onChange={e => setTaskForm({...taskForm, title: e.target.value})} required />
+                <label className="form-label">Project Name</label>
+                <input value={settingsForm?.name || ''} onChange={e => setSettingsForm(p => ({ ...p, name: e.target.value }))} required minLength={2} />
               </div>
               <div className="form-group">
-                <label>Description</label>
-                <textarea rows={3} placeholder="Details..." value={taskForm.description} onChange={e => setTaskForm({...taskForm, description: e.target.value})} />
+                <label className="form-label">Description</label>
+                <textarea value={settingsForm?.description || ''} onChange={e => setSettingsForm(p => ({ ...p, description: e.target.value }))} rows={3} style={{ resize: 'vertical' }} />
               </div>
-              <div className="form-row">
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
                 <div className="form-group">
-                  <label>Status</label>
-                  <select value={taskForm.status} onChange={e => setTaskForm({...taskForm, status: e.target.value})}>
-                    {STATUSES.map(s => <option key={s} value={s}>{STATUS_LABELS[s]}</option>)}
+                  <label className="form-label">Status</label>
+                  <select value={settingsForm?.status || 'active'} onChange={e => setSettingsForm(p => ({ ...p, status: e.target.value }))}>
+                    <option value="active">Active</option>
+                    <option value="on_hold">On Hold</option>
+                    <option value="completed">Completed</option>
+                    <option value="cancelled">Cancelled</option>
                   </select>
                 </div>
                 <div className="form-group">
-                  <label>Priority</label>
-                  <select value={taskForm.priority} onChange={e => setTaskForm({...taskForm, priority: e.target.value})}>
+                  <label className="form-label">Priority</label>
+                  <select value={settingsForm?.priority || 'medium'} onChange={e => setSettingsForm(p => ({ ...p, priority: e.target.value }))}>
                     <option value="low">Low</option>
                     <option value="medium">Medium</option>
                     <option value="high">High</option>
@@ -180,70 +279,26 @@ export default function ProjectDetail() {
                   </select>
                 </div>
               </div>
-              <div className="form-row">
-                <div className="form-group">
-                  <label>Due Date</label>
-                  <input type="date" value={taskForm.dueDate} onChange={e => setTaskForm({...taskForm, dueDate: e.target.value})} />
-                </div>
-                <div className="form-group">
-                  <label>Assign To</label>
-                  <select value={taskForm.assignedTo} onChange={e => setTaskForm({...taskForm, assignedTo: e.target.value})}>
-                    <option value="">Unassigned</option>
-                    {project.members?.map(m => <option key={m.user?._id} value={m.user?._id}>{m.user?.name}</option>)}
-                  </select>
-                </div>
-              </div>
-              <div className="flex gap-2 mt-4">
-                <button type="button" className="btn btn-outline" onClick={() => setShowTaskModal(false)}>Cancel</button>
-                <button type="submit" className="btn btn-primary" disabled={saving}>{saving ? 'Creating...' : 'Create Task'}</button>
-              </div>
+              <button type="submit" className="btn btn-primary" disabled={savingSettings} style={{ alignSelf: 'flex-start' }}>
+                {savingSettings ? <span className="spinner" /> : 'Save Changes'}
+              </button>
             </form>
-          </div>
-        </div>
-      )}
-
-      {showMemberModal && (
-        <div className="modal-overlay" onClick={() => setShowMemberModal(false)}>
-          <div className="modal" onClick={e => e.stopPropagation()}>
-            <h2>Team Members</h2>
-            {isAdmin && (
-              <div className="flex gap-2 mb-4">
-                <input placeholder="Search by name or email" value={memberSearch} onChange={e => setMemberSearch(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleMemberSearch()} />
-                <button className="btn btn-primary" onClick={handleMemberSearch} style={{ whiteSpace: 'nowrap' }}>Search</button>
-              </div>
-            )}
-            {searchResults.length > 0 && (
-              <div className="card mb-4" style={{ padding: 12 }}>
-                {searchResults.map(u => (
-                  <div key={u._id} className="flex justify-between items-center" style={{ padding: '6px 0' }}>
-                    <div>
-                      <div style={{ fontSize: 13, fontWeight: 500 }}>{u.name}</div>
-                      <div style={{ fontSize: 11, color: 'var(--text2)' }}>{u.email}</div>
-                    </div>
-                    <button className="btn btn-primary" style={{ padding: '4px 10px', fontSize: 12 }} onClick={() => handleAddMember(u._id)}>Add</button>
-                  </div>
-                ))}
-              </div>
-            )}
-            <div>
-              {project.members?.map(m => (
-                <div key={m.user?._id} className="flex justify-between items-center" style={{ padding: '10px 0', borderBottom: '1px solid var(--border)' }}>
-                  <div className="flex items-center gap-2">
-                    <img src={m.user?.avatar || `https://api.dicebear.com/7.x/initials/svg?seed=${m.user?.name}`} alt="" style={{ width: 32, height: 32, borderRadius: '50%' }} />
-                    <div>
-                      <div style={{ fontSize: 13, fontWeight: 500 }}>{m.user?.name}</div>
-                      <div style={{ fontSize: 11, color: 'var(--text2)' }}>{m.role}</div>
-                    </div>
-                  </div>
-                  {isAdmin && m.user?._id !== user?._id && (
-                    <button onClick={() => handleRemoveMember(m.user?._id)} className="btn btn-danger" style={{ padding: '4px 10px', fontSize: 12 }}>Remove</button>
-                  )}
+            {isOwner && (
+              <>
+                <hr className="divider" style={{ margin: '2rem 0' }} />
+                <div style={{ padding: '1.25rem', background: 'rgba(239,68,68,0.05)', border: '1px solid rgba(239,68,68,0.15)', borderRadius: 'var(--radius)' }}>
+                  <h3 style={{ fontSize: '0.9rem', color: 'var(--red)', marginBottom: '0.5rem' }}>Danger Zone</h3>
+                  <p style={{ fontSize: '0.8rem', color: 'var(--text-2)', marginBottom: '1rem' }}>Deleting a project is permanent and will remove all tasks.</p>
+                  <button className="btn btn-danger" onClick={handleDeleteProject}><Trash2 size={14} /> Delete Project</button>
                 </div>
-              ))}
-            </div>
+              </>
+            )}
           </div>
-        </div>
-      )}
+        )}
+      </div>
+
+      {showTaskModal && <TaskModal projectId={id} members={project.members} task={editTask} onClose={() => { setShowTaskModal(false); setEditTask(null); }} onSaved={handleTaskSaved} />}
+      {showAddMember && <AddMemberModal projectId={id} existingMembers={project.members} onClose={() => setShowAddMember(false)} onAdded={(updatedProject) => { setProject(updatedProject); setShowAddMember(false); }} />}
     </div>
   );
 }
