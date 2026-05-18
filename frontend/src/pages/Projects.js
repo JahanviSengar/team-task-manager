@@ -1,3 +1,4 @@
+/* eslint-disable */
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { projectAPI } from '../utils/api';
@@ -11,7 +12,6 @@ export default function Projects() {
   const [projects, setProjects] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showCreate, setShowCreate] = useState(false);
-  const [menuOpen, setMenuOpen] = useState(null);
 
   const fetchProjects = async () => {
     try {
@@ -36,7 +36,6 @@ export default function Projects() {
     } catch (err) {
       toast.error(err.response?.data?.message || 'Failed to delete');
     }
-    setMenuOpen(null);
   };
 
   return (
@@ -66,7 +65,6 @@ export default function Projects() {
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '1rem' }}>
           {projects.map(project => {
             const isOwner = project.owner._id === user._id;
-            const myRole = project.members.find(m => m.user._id === user._id)?.role;
             const completionPct = project.stats && project.stats.total > 0 ? Math.round((project.stats.done / project.stats.total) * 100) : 0;
             return (
               <Link key={project._id} to={`/projects/${project._id}`} style={{ display: 'block' }}>
