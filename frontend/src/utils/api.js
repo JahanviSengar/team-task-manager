@@ -1,59 +1,44 @@
 import axios from 'axios';
 
-const API_URL = process.env.REACT_APP_API_URL || '/api';
+const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
 
-const api = axios.create({
-  baseURL: API_URL,
-  headers: { 'Content-Type': 'application/json' },
+const api = axios.create({ baseURL: API_URL });
+
+api.interceptors.request.use(config => {
+  const token = localStorage.getItem('token');
+  if (token) config.headers.Authorization = `Bearer ${token}`;
+  return config;
 });
 
-api.interceptors.request.use(
-  (config) => {
-    const token = localStorage.getItem('token');
-    if (token) config.headers.Authorization = `Bearer ${token}`;
-    return config;
-  },
-  (error) => Promise.reject(error)
-);
-
 api.interceptors.response.use(
-  (response) => response,
-  (error) => {
-    if (error.response?.status === 401) {
+  res => res,
+  err => {
+    if (err.response?.status === 401) {
       localStorage.removeItem('token');
-      localStorage.removeItem('user');
       window.location.href = '/login';
     }
-    return Promise.reject(error);
+    return Promise.reject(err);
   }
 );
 
-export const authAPI = {
-  register: (data) => api.post('/auth/register', data),
-  login: (data) => api.post('/auth/login', data),
-  getMe: () => api.get('/auth/me'),
-  updateProfile: (data) => api.put('/auth/profile', data),
-  getUsers: (search) => api.get('/auth/users', { params: { search } }),
-};
+export const register = d => api.post('/auth/register', d);
+export const login = d => api.post('/auth/login', d);
+export const getMe = () => api.get('/auth/me');
+export const searchUsers = q => api.get(`/auth/users?search=${q}`);
 
-export const projectAPI = {
-  getAll: () => api.get('/projects'),
-  getOne: (id) => api.get(`/projects/${id}`),
-  create: (data) => api.post('/projects', data),
-  update: (id, data) => api.put(`/projects/${id}`, data),
-  delete: (id) => api.delete(`/projects/${id}`),
-  addMember: (id, data) => api.post(`/projects/${id}/members`, data),
-  removeMember: (id, userId) => api.delete(`/projects/${id}/members/${userId}`),
-  updateMemberRole: (id, userId, data) => api.put(`/projects/${id}/members/${userId}`, data),
-};
+export const getProjects = () => api.get('/projects');
+export const getProject = id => api.get(`/projects/${id}`);
+export const createProject = d => api.post('/projects', d);
+export const updateProject = (id, d) => api.put(`/projects/${id}`, d);
+export const deleteProject = id => api.delete(`/projects/${id}`);
+export const addMember = (id, d) => api.post(`/projects/${id}/members`, d);
+export const removeMember = (id, uid) => api.delete(`/projects/${id}/members/${uid}`);
+export const updateMemberRole = (id, uid, d) => api.put(`/projects/${id}/members/${uid}`, d);
 
-export const taskAPI = {
-  getAll: (projectId, params) => api.get(`/tasks/project/${projectId}`, { params }),
-  getOne: (projectId, id) => api.get(`/tasks/project/${projectId}/${id}`),
-  create: (projectId, data) => api.post(`/tasks/project/${projectId}`, data),
-  update: (projectId, id, data) => api.put(`/tasks/project/${projectId}/${id}`, data),
-  delete: (projectId, id) => api.delete(`/tasks/project/${projectId}/${id}`),
-  getDashboard: () => api.get('/tasks/dashboard'),
-};
+export const getDashboard = () => api.get('/tasks/dashboard');
+export const getProjectTasks = (pid, params) => api.get(`/tasks/project/${pid}`, { params });
+export const createTask = (pid, d) => api.post(`/tasks/project/${pid}`, d);
+export const updateTask = (pid, tid, d) => api.put(`/tasks/project/${pid}/${tid}`, d);
+export const deleteTask = (pid, tid) => api.delete(`/tasks/project/${pid}/${tid}`);
 
 export default api;
