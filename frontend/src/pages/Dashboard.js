@@ -8,11 +8,14 @@ const priorityColors = { low: 'badge-low', medium: 'badge-medium', high: 'badge-
 
 export default function Dashboard() {
   const { user } = useAuth();
-  const [data, setData] = useState(null);
+  const [data, setData] = useState({ stats: {}, recentTasks: [], projects: [] });
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    getDashboard().then(r => setData(r.data.data)).finally(() => setLoading(false));
+    getDashboard()
+      .then(r => setData(r.data.data))
+      .catch(() => setData({ stats: {}, recentTasks: [], projects: [] }))
+      .finally(() => setLoading(false));
   }, []);
 
   const hour = new Date().getHours();
@@ -49,7 +52,7 @@ export default function Dashboard() {
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
         <div className="card">
           <h3 style={{ marginBottom: 16, fontSize: 15 }}>Recent Tasks</h3>
-          {data?.recentTasks?.length === 0 && <p className="text-muted text-sm">No tasks yet</p>}
+          {(!data?.recentTasks || data.recentTasks.length === 0) && <p className="text-muted text-sm">No tasks yet — create a project and add some!</p>}
           {data?.recentTasks?.map(t => (
             <div key={t._id} style={{ padding: '10px 0', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div>
@@ -63,7 +66,7 @@ export default function Dashboard() {
 
         <div className="card">
           <h3 style={{ marginBottom: 16, fontSize: 15 }}>My Projects</h3>
-          {data?.projects?.length === 0 && <p className="text-muted text-sm">No projects yet</p>}
+          {(!data?.projects || data.projects.length === 0) && <p className="text-muted text-sm">No projects yet — <Link to="/projects" style={{ color: 'var(--primary)' }}>create one!</Link></p>}
           {data?.projects?.map(p => (
             <Link key={p._id} to={`/projects/${p._id}`} style={{ display: 'block', padding: '10px 0', borderBottom: '1px solid var(--border)', textDecoration: 'none', color: 'inherit' }}>
               <div style={{ fontSize: 14, fontWeight: 500 }}>{p.name}</div>
