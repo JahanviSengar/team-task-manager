@@ -15,9 +15,12 @@ export default function Login() {
     setLoading(true);
     try {
       const { data } = await loginApi(form);
-      login(data.token, data.data);
+      console.log('Login response:', data);
+      const token = data.token;
+      const user = data.data || data.user || data;
+      login(token, user);
       toast.success('Welcome back!');
-      navigate('/dashboard');
+      setTimeout(() => navigate('/dashboard'), 100);
     } catch (err) {
       toast.error(err.response?.data?.message || 'Login failed');
     } finally {
