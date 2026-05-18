@@ -1,124 +1,117 @@
-/* eslint-disable */
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { projectAPI } from '../utils/api';
 import toast from 'react-hot-toast';
-import { Plus, FolderKanban, Users, CheckSquare, AlertTriangle, Trash2, Crown } from 'lucide-react';
-import { useAuth } from '../context/AuthContext';
-import CreateProjectModal from '../components/CreateProjectModal';
+import { getProjects, createProject } from '../utils/api';
+import { Plus, FolderKanban } from 'lucide-react';
+
+const COLORS = ['#6c63ff','#22c55e','#f59e0b','#ef4444','#06b6d4','#a855f7'];
 
 export default function Projects() {
-  const { user } = useAuth();
   const [projects, setProjects] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [showCreate, setShowCreate] = useState(false);
+  const [showModal, setShowModal] = useState(false);
+  const [form, setForm] = useState({ name: '', description: '', priority: 'medium', color: COLORS[0] });
+  const [saving, setSaving] = useState(false);
 
-  const fetchProjects = async () => {
-    try {
-      const res = await projectAPI.getAll();
-      setProjects(res.data.projects);
-    } catch {
-      toast.error('Failed to load projects');
-    } finally {
-      setLoading(false);
-    }
-  };
+  useEffect(() => {
+    getProjects()
+      .then(r => setProjects(r.data.data || r.data || []))
+      .catch(() => setProjects([]))
+      .finally(() => setLoading(false));
+  }, []);
 
-  useEffect(() => { fetchProjects(); }, []);
-
-  const handleDelete = async (e, projectId) => {
+  const handleCreate = async e => {
     e.preventDefault();
-    if (!window.confirm('Delete this project and all its tasks?')) return;
+    setSaving(true);
     try {
-      await projectAPI.delete(projectId);
-      setProjects(p => p.filter(pr => pr._id !== projectId));
-      toast.success('Project deleted');
+      const { data } = await createProject(form);
+      const newProject = data.data || data;
+      setProjects(prev => [newProject, ...prev]);
+      setShowModal(false);
+      setForm({ name: '', description: '', priority: 'medium', color: COLORS[0] });
+      toast.success('Project created!');
     } catch (err) {
-      toast.error(err.response?.data?.message || 'Failed to delete');
+      toast.error(err.response?.data?.message || 'Failed to create project');
+    } finally {
+      setSaving(false);
     }
   };
+
+  if (loading) return <div className="spinner" />;
 
   return (
-    <div style={{ padding: '2rem', maxWidth: 1100, margin: '0 auto', animation: 'fadeIn 0.4s ease' }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '2rem' }}>
+    <div>
+      <div className="page-header flex justify-between items-center">
         <div>
-          <h1 style={{ fontSize: '1.75rem', marginBottom: '0.25rem' }}>Projects</h1>
-          <p style={{ color: 'var(--text-2)', fontSize: '0.9rem' }}>{projects.length} project{projects.length !== 1 ? 's' : ''}</p>
+          <h1>Projects</h1>
+          <p>Manage your team projects</p>
         </div>
-        <button className="btn btn-primary" onClick={() => setShowCreate(true)}>
+        <button className="btn btn-primary flex items-center gap-2" onClick={() => setShowModal(true)}>
           <Plus size={16} /> New Project
         </button>
       </div>
 
-      {loading ? (
-        <div style={{ display: 'flex', justifyContent: 'center', padding: '4rem' }}>
-          <div className="spinner" style={{ width: 36, height: 36 }} />
-        </div>
-      ) : projects.length === 0 ? (
-        <div className="empty-state">
+      {projects.length === 0 ? (
+        <div className="empty">
           <FolderKanban size={48} />
-          <h3 style={{ fontSize: '1.1rem', color: 'var(--text-2)' }}>No projects yet</h3>
-          <p style={{ color: 'var(--text-3)', fontSize: '0.875rem' }}>Create your first project to get started</p>
-          <button className="btn btn-primary" onClick={() => setShowCreate(true)}><Plus size={16} /> Create Project</button>
+          <p style={{ marginTop: 16 }}>No projects yet. Create your first one!</p>
         </div>
       ) : (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '1rem' }}>
-          {projects.map(project => {
-            const isOwner = project.owner._id === user._id;
-            const completionPct = project.stats && project.stats.total > 0 ? Math.round((project.stats.done / project.stats.total) * 100) : 0;
-            return (
-              <Link key={project._id} to={`/projects/${project._id}`} style={{ display: 'block' }}>
-                <div className="card" style={{ cursor: 'pointer', height: '100%', position: 'relative' }}
-                  onMouseEnter={e => e.currentTarget.style.borderColor = project.color || 'var(--accent)'}
-                  onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--border)'}>
-                  <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 3, background: project.color || 'var(--accent)', borderRadius: 'var(--radius) var(--radius) 0 0' }} />
-                  <div style={{ marginTop: '0.5rem' }}>
-                    <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '0.5rem', marginBottom: '0.75rem' }}>
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginBottom: '0.25rem' }}>
-                          <h3 style={{ fontSize: '1rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{project.name}</h3>
-                          {isOwner && <Crown size={12} color="var(--yellow)" />}
-                        </div>
-                        {project.description && <p style={{ fontSize: '0.8rem', color: 'var(--text-2)', overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>{project.description}</p>}
-                      </div>
-                      {isOwner && (
-                        <div onClick={e => e.preventDefault()}>
-                          <button className="btn btn-danger btn-sm" onClick={e => handleDelete(e, project._id)}><Trash2 size={13} /></button>
-                        </div>
-                      )}
-                    </div>
-                    <div style={{ display: 'flex', gap: '1rem', marginBottom: '1rem', fontSize: '0.78rem', color: 'var(--text-2)' }}>
-                      <span style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}><CheckSquare size={12} /> {project.stats ? project.stats.total : 0} tasks</span>
-                      <span style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}><Users size={12} /> {project.members.length} members</span>
-                      {project.stats && project.stats.overdue > 0 && <span style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', color: 'var(--red)' }}><AlertTriangle size={12} /> {project.stats.overdue} overdue</span>}
-                    </div>
-                    {project.stats && project.stats.total > 0 && (
-                      <div style={{ marginBottom: '0.75rem' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.72rem', color: 'var(--text-3)', marginBottom: '0.25rem' }}>
-                          <span>Progress</span><span>{completionPct}%</span>
-                        </div>
-                        <div style={{ background: 'var(--bg-3)', borderRadius: 100, height: 5, overflow: 'hidden' }}>
-                          <div style={{ height: '100%', width: `${completionPct}%`, background: project.color || 'var(--accent)', borderRadius: 100 }} />
-                        </div>
-                      </div>
-                    )}
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                      <div style={{ display: 'flex' }}>
-                        {project.members.slice(0, 4).map((m, i) => (
-                          <img key={m.user._id} src={m.user.avatar} alt={m.user.name} style={{ width: 24, height: 24, borderRadius: '50%', border: '2px solid var(--bg-2)', marginLeft: i > 0 ? -8 : 0 }} title={m.user.name} />
-                        ))}
-                      </div>
-                      <span className={`badge badge-${project.priority}`}>{project.priority}</span>
-                    </div>
-                  </div>
-                </div>
-              </Link>
-            );
-          })}
+        <div className="projects-grid">
+          {projects.map(p => (
+            <Link key={p._id} to={`/projects/${p._id}`} className="project-card">
+              <div style={{ width: 40, height: 40, borderRadius: 10, background: p.color || '#6c63ff', marginBottom: 12 }} />
+              <h3 style={{ fontSize: 16, fontWeight: 600, marginBottom: 4 }}>{p.name}</h3>
+              <p style={{ fontSize: 13, color: 'var(--text2)', marginBottom: 12 }}>{p.description || 'No description'}</p>
+              <div className="flex gap-2">
+                <span className={`badge badge-${p.priority}`}>{p.priority}</span>
+                <span className="text-xs text-muted">{p.members?.length || 0} members</span>
+              </div>
+            </Link>
+          ))}
         </div>
       )}
 
-      {showCreate && <CreateProjectModal onClose={() => setShowCreate(false)} onCreated={(project) => { setProjects(p => [project, ...p]); setShowCreate(false); }} />}
+      {showModal && (
+        <div className="modal-overlay" onClick={() => setShowModal(false)}>
+          <div className="modal" onClick={e => e.stopPropagation()}>
+            <h2>New Project</h2>
+            <form onSubmit={handleCreate}>
+              <div className="form-group">
+                <label>Project Name</label>
+                <input placeholder="My Awesome Project" value={form.name} onChange={e => setForm({...form, name: e.target.value})} required />
+              </div>
+              <div className="form-group">
+                <label>Description</label>
+                <textarea rows={3} placeholder="What's this project about?" value={form.description} onChange={e => setForm({...form, description: e.target.value})} />
+              </div>
+              <div className="form-row">
+                <div className="form-group">
+                  <label>Priority</label>
+                  <select value={form.priority} onChange={e => setForm({...form, priority: e.target.value})}>
+                    <option value="low">Low</option>
+                    <option value="medium">Medium</option>
+                    <option value="high">High</option>
+                    <option value="critical">Critical</option>
+                  </select>
+                </div>
+                <div className="form-group">
+                  <label>Color</label>
+                  <div className="flex gap-2 mt-2">
+                    {COLORS.map(c => (
+                      <div key={c} onClick={() => setForm({...form, color: c})} style={{ width: 28, height: 28, borderRadius: '50%', background: c, cursor: 'pointer', border: form.color === c ? '3px solid white' : '3px solid transparent' }} />
+                    ))}
+                  </div>
+                </div>
+              </div>
+              <div className="flex gap-2 mt-4">
+                <button type="button" className="btn btn-outline" onClick={() => setShowModal(false)}>Cancel</button>
+                <button type="submit" className="btn btn-primary" disabled={saving}>{saving ? 'Creating...' : 'Create Project'}</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
