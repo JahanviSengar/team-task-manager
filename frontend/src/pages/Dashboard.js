@@ -10,16 +10,29 @@ export default function Dashboard() {
   const { user } = useAuth();
   const [data, setData] = useState({ stats: {}, recentTasks: [], projects: [] });
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
   useEffect(() => {
     getDashboard()
-      .then(r => setData(r.data.data))
-      .catch(() => setData({ stats: {}, recentTasks: [], projects: [] }))
+      .then(r => {
+        const d = r.data.data || r.data || {};
+        setData({
+          stats: d.stats || {},
+          recentTasks: d.recentTasks || [],
+          projects: d.projects || []
+        });
+      })
+      .catch((err) => {
+        console.error('Dashboard error:', err);
+        setError('Failed to load dashboard');
+        setData({ stats: {}, recentTasks: [], projects: [] });
+      })
       .finally(() => setLoading(false));
   }, []);
 
   const hour = new Date().getHours();
   const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
+
   if (loading) return <div className="spinner" />;
 
   return (
@@ -28,6 +41,13 @@ export default function Dashboard() {
         <h1>{greeting}, {user?.name?.split(' ')[0]}! 👋</h1>
         <p>Here's what's happening with your projects</p>
       </div>
+
+      {error && (
+        <div style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid #ef4444', borderRadius: 8, padding: '12px 16px', marginBottom: 20, color: '#ef4444', fontSize: 14 }}>
+          {error} — please refresh the page
+        </div>
+      )}
+
       <div className="stat-grid">
         <div className="stat-card">
           <div className="label flex items-center gap-2"><FolderKanban size={14} /> Total Projects</div>
@@ -46,27 +66,29 @@ export default function Dashboard() {
           <div className="value">{data?.stats?.dueThisWeek || 0}</div>
         </div>
       </div>
+
       <div className="dashboard-grid">
         <div className="card">
           <h3 style={{ marginBottom: 16, fontSize: 15 }}>Recent Tasks</h3>
-          {(!data?.recentTasks || data.recentTasks.length === 0) && <p className="text-muted text-sm">No tasks yet — create a project and add some!</p>}
-          {data?.recentTasks?.map(t => (
+          {data.recentTasks.length === 0 && <p className="text-muted text-sm">No tasks yet — create a project and add some!</p>}
+          {data.recentTasks.map(t => (
             <div key={t._id} style={{ padding: '10px 0', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div>
                 <div style={{ fontSize: 14, fontWeight: 500 }}>{t.title}</div>
                 <div style={{ fontSize: 12, color: 'var(--text2)' }}>{t.project?.name}</div>
               </div>
-              <span className={`badge ${priorityColors[t.priority]}`}>{t.priority}</span>
+              <span className={`badge ${priorityColors[t.priority] || 'badge-medium'}`}>{t.priority}</span>
             </div>
           ))}
         </div>
+
         <div className="card">
           <h3 style={{ marginBottom: 16, fontSize: 15 }}>My Projects</h3>
-          {(!data?.projects || data.projects.length === 0) && <p className="text-muted text-sm">No projects yet — <Link to="/projects" style={{ color: 'var(--primary)' }}>create one!</Link></p>}
-          {data?.projects?.map(p => (
+          {data.projects.length === 0 && <p className="text-muted text-sm">No projects yet — <Link to="/projects" style={{ color: 'var(--primary)' }}>create one!</Link></p>}
+          {data.projects.map(p => (
             <Link key={p._id} to={`/projects/${p._id}`} style={{ display: 'block', padding: '10px 0', borderBottom: '1px solid var(--border)', textDecoration: 'none', color: 'inherit' }}>
               <div style={{ fontSize: 14, fontWeight: 500 }}>{p.name}</div>
-              <div style={{ fontSize: 12, color: 'var(--text2)' }}>{p.members?.length} members</div>
+              <div style={{ fontSize: 12, color: 'var(--text2)' }}>{p.members?.length || 0} members</div>
             </Link>
           ))}
         </div>
