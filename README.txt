@@ -2,9 +2,8 @@
   TASKFLOW — TEAM TASK MANAGER (Full-Stack)
   Internship Assignment Submission
 ================================================================================
-
-LIVE APPLICATION URL: [Add your Railway URL here after deployment]
-GITHUB REPOSITORY:    [Add your GitHub repo URL here]
+LIVE APPLICATION URL: https://web-production-5e937.up.railway.app
+GITHUB REPOSITORY:    https://github.com/JahanviSengar/team-task-manager
 
 --------------------------------------------------------------------------------
 PROJECT OVERVIEW
