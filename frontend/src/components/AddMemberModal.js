@@ -19,7 +19,7 @@ export default function AddMemberModal({ projectId, existingMembers, onClose, on
       try {
         const res = await authAPI.getUsers(search);
         setUsers(res.data.users.filter(u => !existingIds.has(u._id)));
-      } catch {}
+      } catch(e) {}
       setLoading(false);
     }, 350);
   }, [search]);
@@ -32,7 +32,9 @@ export default function AddMemberModal({ projectId, existingMembers, onClose, on
       onAdded(res.data.project);
     } catch (err) {
       toast.error(err.response?.data?.message || 'Failed to add member');
-    } finally { setAdding(null); }
+    } finally {
+      setAdding(null);
+    }
   };
 
   return (
@@ -51,6 +53,53 @@ export default function AddMemberModal({ projectId, existingMembers, onClose, on
             <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search by name or email..." autoFocus style={{ paddingLeft: '2.25rem' }} />
           </div>
         </div>
-        {loading && <div style={{ display: 'flex', justifyContent: 'center', padding: '1rem' }}><div className="spinner" /></div>}
+        {loading && (
+          <div style={{ display: 'flex', justifyContent: 'center', padding: '1rem' }}>
+            <div className="spinner" />
+          </div>
+        )}
         {!loading && search && users.length === 0 && (
-          <div className="empty-state" style={{ padding: '1.5rem' }}><Users size={28} /><p style={{ fontSize: '0.85rem' }}>No users
+          <div className="empty-state" style={{ padding: '1.5rem' }}>
+            <Users size={28} />
+            <p style={{ fontSize: '0.85rem' }}>No users found</p>
+          </div>
+        )}
+        {!loading && !search && (
+          <div style={{ textAlign: 'center', padding: '1rem', color: 'var(--text-3)', fontSize: '0.85rem' }}>
+            Type to search for users to add
+          </div>
+        )}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+          {users.map(u => (
+            <div key={u._id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.6rem 0.75rem', background: 'var(--bg-3)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                <img src={u.avatar} alt={u.name} style={{ width: 32, height: 32, borderRadius: '50%', border: '2px solid var(--border)' }} />
+                <div>
+                  <div style={{ fontSize: '0.875rem', fontWeight: 600 }}>{u.name}</div>
+                  <div style={{ fontSize: '0.75rem', color: 'var(--text-3)' }}>{u.email}</div>
+                </div>
+              </div>
+              <button className="btn btn-primary btn-sm" onClick={() => handleAdd(u._id)} disabled={adding === u._id}>
+                {adding === u._id ? <span className="spinner" style={{ width: 14, height: 14 }} /> : <span><UserPlus size={13} /> Add</span>}
+              </button>
+            </div>
+          ))}
+        </div>
+        <div style={{ marginTop: '1.25rem', borderTop: '1px solid var(--border)', paddingTop: '1rem' }}>
+          <div style={{ fontSize: '0.78rem', color: 'var(--text-3)', marginBottom: '0.5rem', fontWeight: 600 }}>Current Members</div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+            {existingMembers.map(m => (
+              <div key={m.user._id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.4rem 0.6rem', borderRadius: 'var(--radius-sm)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                  <img src={m.user.avatar} alt={m.user.name} style={{ width: 24, height: 24, borderRadius: '50%' }} />
+                  <span style={{ fontSize: '0.83rem' }}>{m.user.name}</span>
+                </div>
+                <span style={{ fontSize: '0.72rem', fontWeight: 600, color: m.role === 'admin' ? 'var(--accent)' : 'var(--text-3)', textTransform: 'capitalize' }}>{m.role}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}

@@ -23,19 +23,22 @@ export default function TaskModal({ projectId, members, task, onClose, onSaved }
       const payload = {
         ...form,
         tags: form.tags ? form.tags.split(',').map(t => t.trim()).filter(Boolean) : [],
-        assignedTo: form.assignedTo || undefined,
-        dueDate: form.dueDate || undefined,
       };
       if (!payload.assignedTo) delete payload.assignedTo;
       if (!payload.dueDate) delete payload.dueDate;
       let res;
-      if (isEdit) { res = await taskAPI.update(projectId, task._id, payload); }
-      else { res = await taskAPI.create(projectId, payload); }
+      if (isEdit) {
+        res = await taskAPI.update(projectId, task._id, payload);
+      } else {
+        res = await taskAPI.create(projectId, payload);
+      }
       toast.success(isEdit ? 'Task updated!' : 'Task created!');
       onSaved(res.data.task);
     } catch (err) {
       toast.error(err.response?.data?.message || 'Failed to save task');
-    } finally { setLoading(false); }
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -82,4 +85,28 @@ export default function TaskModal({ projectId, members, task, onClose, onSaved }
               <label className="form-label">Assign To</label>
               <select value={form.assignedTo} onChange={e => setForm(p => ({ ...p, assignedTo: e.target.value }))}>
                 <option value="">Unassigned</option>
-                {members?.map(m => <option key={m.user._id} value={m.user._id}>{m.user.name}</option>)}
+                {members && members.map(m => (
+                  <option key={m.user._id} value={m.user._id}>{m.user.name}</option>
+                ))}
+              </select>
+            </div>
+            <div className="form-group">
+              <label className="form-label">Due Date</label>
+              <input type="date" value={form.dueDate} onChange={e => setForm(p => ({ ...p, dueDate: e.target.value }))} />
+            </div>
+          </div>
+          <div className="form-group">
+            <label className="form-label">Tags</label>
+            <input value={form.tags} onChange={e => setForm(p => ({ ...p, tags: e.target.value }))} placeholder="design, frontend, bug..." />
+          </div>
+          <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'flex-end', marginTop: '0.25rem' }}>
+            <button type="button" className="btn btn-secondary" onClick={onClose}>Cancel</button>
+            <button type="submit" className="btn btn-primary" disabled={loading}>
+              {loading ? <span className="spinner" /> : isEdit ? 'Save Changes' : 'Create Task'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
