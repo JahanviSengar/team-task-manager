@@ -1,8 +1,10 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { getMe } from '../utils/api';
+import axios from 'axios';
 
 const AuthContext = createContext();
 export const useAuth = () => useContext(AuthContext);
+
+const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
@@ -10,19 +12,11 @@ export const AuthProvider = ({ children }) => {
 
   useEffect(() => {
     const token = localStorage.getItem('token');
-    if (token) {
-      getMe()
-        .then(r => {
-          const u = r.data.data || r.data.user || r.data;
-          setUser(u);
-        })
-        .catch(() => {
-          localStorage.removeItem('token');
-        })
-        .finally(() => setLoading(false));
-    } else {
-      setLoading(false);
-    }
+    if (!token) { setLoading(false); return; }
+    axios.get(`${API_URL}/auth/me`, { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => setUser(r.data.data || r.data.user || r.data))
+      .catch(() => localStorage.removeItem('token'))
+      .finally(() => setLoading(false));
   }, []);
 
   const login = (token, userData) => {
