@@ -14,7 +14,10 @@ export default function Projects() {
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    getProjects().then(r => setProjects(r.data.data)).finally(() => setLoading(false));
+    getProjects()
+      .then(r => setProjects(r.data.data || r.data || []))
+      .catch(() => setProjects([]))
+      .finally(() => setLoading(false));
   }, []);
 
   const handleCreate = async e => {
@@ -22,7 +25,8 @@ export default function Projects() {
     setSaving(true);
     try {
       const { data } = await createProject(form);
-      setProjects([data.data, ...projects]);
+      const newProject = data.data || data;
+      setProjects(prev => [newProject, ...prev]);
       setShowModal(false);
       setForm({ name: '', description: '', priority: 'medium', color: COLORS[0] });
       toast.success('Project created!');
@@ -50,7 +54,7 @@ export default function Projects() {
       {projects.length === 0 ? (
         <div className="empty">
           <FolderKanban size={48} />
-          <p>No projects yet. Create your first one!</p>
+          <p style={{ marginTop: 16 }}>No projects yet. Create your first one!</p>
         </div>
       ) : (
         <div className="projects-grid">
@@ -58,56 +62,4 @@ export default function Projects() {
             <Link key={p._id} to={`/projects/${p._id}`} className="project-card">
               <div style={{ width: 40, height: 40, borderRadius: 10, background: p.color || '#6c63ff', marginBottom: 12 }} />
               <h3 style={{ fontSize: 16, fontWeight: 600, marginBottom: 4 }}>{p.name}</h3>
-              <p style={{ fontSize: 13, color: 'var(--text2)', marginBottom: 12 }}>{p.description || 'No description'}</p>
-              <div className="flex gap-2">
-                <span className={`badge badge-${p.priority}`}>{p.priority}</span>
-                <span className="text-xs text-muted">{p.members?.length} members</span>
-              </div>
-            </Link>
-          ))}
-        </div>
-      )}
-
-      {showModal && (
-        <div className="modal-overlay" onClick={() => setShowModal(false)}>
-          <div className="modal" onClick={e => e.stopPropagation()}>
-            <h2>New Project</h2>
-            <form onSubmit={handleCreate}>
-              <div className="form-group">
-                <label>Project Name</label>
-                <input placeholder="My Awesome Project" value={form.name} onChange={e => setForm({...form, name: e.target.value})} required />
-              </div>
-              <div className="form-group">
-                <label>Description</label>
-                <textarea rows={3} placeholder="What's this project about?" value={form.description} onChange={e => setForm({...form, description: e.target.value})} />
-              </div>
-              <div className="form-row">
-                <div className="form-group">
-                  <label>Priority</label>
-                  <select value={form.priority} onChange={e => setForm({...form, priority: e.target.value})}>
-                    <option value="low">Low</option>
-                    <option value="medium">Medium</option>
-                    <option value="high">High</option>
-                    <option value="critical">Critical</option>
-                  </select>
-                </div>
-                <div className="form-group">
-                  <label>Color</label>
-                  <div className="flex gap-2 mt-2">
-                    {COLORS.map(c => (
-                      <div key={c} onClick={() => setForm({...form, color: c})} style={{ width: 28, height: 28, borderRadius: '50%', background: c, cursor: 'pointer', border: form.color === c ? '3px solid white' : '3px solid transparent' }} />
-                    ))}
-                  </div>
-                </div>
-              </div>
-              <div className="flex gap-2 mt-4">
-                <button type="button" className="btn btn-outline" onClick={() => setShowModal(false)}>Cancel</button>
-                <button type="submit" className="btn btn-primary" disabled={saving}>{saving ? 'Creating...' : 'Create Project'}</button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
+              <p style={{ fontSize: 13, color: 'var(--text2)', ma
